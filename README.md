@@ -22,7 +22,7 @@ In the following example, if this is run for the first time, it will fail with a
 
 
 # example
-    var envconfig = require('./environment');
+    var envconfig = require('envconfig');
     var env = envconfig({
       NODE_ENV: 'development',
       UPLOADS: {
