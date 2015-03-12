@@ -19,7 +19,8 @@
   },
   "keywords": [
     "environment",
-    "config"
+    "config",
+    "12factor"
   ],
   "author": "Jason Rowland <jason@snowcapstudios.com> (http://www.jasonrowland.com/)",
   "license": "MIT",
