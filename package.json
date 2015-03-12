@@ -1,6 +1,6 @@
 {
   "name": "envconfig",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Environment based configuration with automatic checking",
   "main": "environment.js",
   "directories": {
