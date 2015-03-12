@@ -63,158 +63,153 @@ function Environment(defaults) {
       me[key] = defaultValue;
     }
   });
-  
-  return me;
-}
 
-Environment.getDirectories = function (callback) {
-  var me = this;
-  var directories = [];
-  var deferred = Q.defer();
-  
-  function collect(key, cb) {
-    var value = me.defaults[key];
-    var isDirectory = value.isDirectory;
-    if (isDirectory) {
-      var dir = {
-        value: me[key],
-        exists: false
-      };
-      
-      fs.lstat(dir.value, function (err, stat) {
-        if (stat) {
-          dir.exists = true;
-        }
-        directories[key] = dir;
+
+  me.getDirectories = function (callback) {
+    var directories = [];
+    var deferred = Q.defer();
+
+    function collect(key, cb) {
+      var value = me.defaults[key];
+      var isDirectory = value.isDirectory;
+      if (isDirectory) {
+        var dir = {
+          value: me[key],
+          exists: false
+        };
+
+        fs.lstat(dir.value, function (err, stat) {
+          if (stat) {
+            dir.exists = true;
+          }
+          directories[key] = dir;
+          cb();
+        });
+      } else {
         cb();
-      });
-    } else { 
-      cb();
-    }  
-  }
-
-  async.each(Object.keys(me.defaults), collect, function (err) {
-    // If using as a callback, then call it!
-    if (callback) {
-      callback(directories);
+      }
     }
-    // Resolve promise
-    deferred.resolve(directories);
-  })
-  
-  return deferred.promise;
-}
 
-
-Environment.getVariables = function () {
-  var me = this;
-  var variables = {};
-  forEachKey(me.defaults, function (key, value) {
-    var variable = {
-      value: me[key],
-      required: value.required,
-      exists: process.env[key] !== undefined
-    }
-    variables[key] = variable;
-  })
-  
-  return variables;
-}
-
-Environment.createDirectories = function (callback) {
-  var me = this;
-  var deferred = Q.defer();
-
-  function createDir(dir, cb) {
-    if (! dir.exists) {
-      fs.mkdir(dir.value, function (err) {
-        cb(err);
-      });
-    } else {
-      cb();
-    }
-  }
-
-  me.getDirectories(function (directories) {
-    var keys = Object.keys(directories);
-    var dirs = keys.map(function(v) { return directories[v]; });
-    
-    async.eachSeries(dirs, createDir, function (err) {
+    async.each(Object.keys(me.defaults), collect, function (err) {
       // If using as a callback, then call it!
       if (callback) {
-        callback(err);
+        callback(directories);
       }
       // Resolve promise
-      if (err) {
-        deferred.reject(err);
-      } else {
-        deferred.resolve();
-      }
+      deferred.resolve(directories);
     })
-  });
-  
-  return deferred.promise;
-}
 
-Environment.check = function (options, callback) {
-  var me = this;
-  var errors = null;
-  var deferred = Q.defer();
-
-  if (options === undefined) {
-    callback = null;
-    options = {};
-  } else if (typeof options === 'function') {
-    callback = options;
-    options = {};
-  }
-  var createDirectories = (options.createDirectories !== undefined )
-    ? options.createDirectories 
-    : false;
-
-  function error(name, msg) {
-    errors = errors || [];
-    var e = new Error(msg);
-    e.name = name;
-    errors.push(e);
+    return deferred.promise;
   }
 
-  var variables = null;
-  // Check all variables are set
-  variables = me.getVariables();
-  forEachKey(variables, function (key, variable) {
-    if (variable.required && !variable.exists) {
-      error('EnvironmentRequiredError', 'Variable is required: '+key);
-    }
-  })
-  
-  // Make sure directories exist
-  me.getDirectories(function (directories) {
-    forEachKey(directories, function (key, dir) {
+
+  me.getVariables = function () {
+    var variables = {};
+    forEachKey(me.defaults, function (key, value) {
+      var variable = {
+        value: me[key],
+        required: value.required,
+        exists: process.env[key] !== undefined
+      }
+      variables[key] = variable;
+    })
+
+    return variables;
+  }
+
+  me.createDirectories = function (callback) {
+    var deferred = Q.defer();
+
+    function createDir(dir, cb) {
       if (! dir.exists) {
-        error('EnvironmentDirectoryError', 'Path does not exist: '+key+'="' + path.resolve(dir.value) + '"');
+        fs.mkdir(dir.value, function (err) {
+          cb(err);
+        });
+      } else {
+        cb();
+      }
+    }
+
+    me.getDirectories(function (directories) {
+      var keys = Object.keys(directories);
+      var dirs = keys.map(function(v) { return directories[v]; });
+
+      async.eachSeries(dirs, createDir, function (err) {
+        // If using as a callback, then call it!
+        if (callback) {
+          callback(err);
+        }
+        // Resolve promise
+        if (err) {
+          deferred.reject(err);
+        } else {
+          deferred.resolve();
+        }
+      })
+    });
+
+    return deferred.promise;
+  }
+
+  me.check = function (options, callback) {
+    var errors = null;
+    var deferred = Q.defer();
+
+    if (options === undefined) {
+      callback = null;
+      options = {};
+    } else if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+
+    function error(name, msg) {
+      errors = errors || [];
+      var e = new Error(msg);
+      e.name = name;
+      errors.push(e);
+    }
+
+    var variables = null;
+    // Check all variables are set
+    variables = me.getVariables();
+    forEachKey(variables, function (key, variable) {
+      if (variable.required && !variable.exists) {
+        error('EnvironmentRequiredError', 'Variable is required: '+key);
       }
     })
-    
-    // Set the name of the errors object
-    if (errors) {
-      errors.name = 'EnvironmentErrors';
-    }
-    // If callback, call it
-    if (callback) {
-      callback(errors);
-    }
-    // do the promise
-    if (! errors) {
-      deferred.resolve();
-    } else {
-      deferred.reject(errors);
-    }    
-  });
-  
-  return deferred.promise;
-}
 
+    // Make sure directories exist
+    me.getDirectories(function (directories) {
+      forEachKey(directories, function (key, dir) {
+        if (! dir.exists) {
+          error('EnvironmentDirectoryError', 'Path does not exist: '+key+'="' + path.resolve(dir.value) + '"');
+        }
+      })
+
+      // Set the name of the errors object
+      if (errors) {
+        errors.name = 'EnvironmentErrors';
+      }
+      
+      // If callback, call it
+      if (callback) {
+        callback(errors);
+      }
+      // do the promise
+      if (! errors) {
+        deferred.resolve();
+      } else {
+        deferred.reject(errors);
+      }
+    });
+
+    return deferred.promise;
+  }
+
+
+  return me;
+}
 
 function fromString(type, defaultValue, str) {
     if (type === 'number') {
